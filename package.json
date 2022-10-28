@@ -4,7 +4,8 @@
   "description": "KafkaJS helper utilities",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc"
   },
   "repository": {
     "type": "git",
@@ -15,6 +16,9 @@
     "url": "https://github.com/arrowsup/kafkajs-utils/issues"
   },
   "homepage": "https://github.com/arrowsup/kafkajs-utils#readme",
+  "peerDependencies": {
+    "kafkajs": "^2.2.2"
+  },
   "devDependencies": {
     "typescript": "^4.8.4"
   }
