@@ -4,8 +4,10 @@
   "description": "KafkaJS helper utilities",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "jest",
+    "test:start-env": "docker-compose -f docker-compose.yml up",
+    "test:stop-env": "docker-compose -f docker-compose.yml down"
   },
   "repository": {
     "type": "git",
@@ -20,6 +22,7 @@
     "kafkajs": "^2.2.2"
   },
   "devDependencies": {
+    "jest": "^29.2.2",
     "typescript": "^4.8.4"
   }
 }
