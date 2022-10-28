@@ -1,0 +1,21 @@
+{
+  "name": "kafkajs-utils",
+  "version": "0.0.1",
+  "description": "KafkaJS helper utilities",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arrowsup/kafkajs-utils.git"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/arrowsup/kafkajs-utils/issues"
+  },
+  "homepage": "https://github.com/arrowsup/kafkajs-utils#readme",
+  "devDependencies": {
+    "typescript": "^4.8.4"
+  }
+}
