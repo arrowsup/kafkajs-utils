@@ -1,1 +1,1 @@
-export * from "./kafka-exactly-once-manager";
+export * from "./kafka-exactly-once-executor";

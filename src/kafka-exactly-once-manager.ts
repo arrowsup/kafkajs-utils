@@ -1,15 +1,22 @@
 import {
-  CompressionTypes,
   Consumer,
   ConsumerConfig,
-  EachMessagePayload,
   Kafka,
   KafkaConfig,
   Logger,
-  Message,
   Producer,
   ProducerConfig,
 } from "kafkajs";
+
+export type KafkaExactlyOnceManagerConfig = {
+  transactionIdPrefix: string;
+  kafkaConfig: KafkaConfig;
+  createConsumerConfig: Omit<ConsumerConfig, "readUncommitted">;
+  createProducerOptions: Omit<
+    ProducerConfig,
+    "idempotent" | "maxInFlightRequests" | "transactionalId"
+  >;
+};
 
 export class KafkaExactlyOnceManager {
   /** Map of transactionalId -> Producer. */
@@ -18,19 +25,8 @@ export class KafkaExactlyOnceManager {
   private readonly kafka: Kafka;
   private readonly logger: Logger;
 
-  constructor(
-    private readonly appId: string,
-    config: KafkaConfig,
-    private readonly createConsumerConfig: Omit<
-      ConsumerConfig,
-      "readUncommitted"
-    >,
-    private readonly createProducerOptions: Omit<
-      ProducerConfig,
-      "idempotent" | "maxInFlightRequests" | "transactionalId"
-    >
-  ) {
-    this.kafka = new Kafka(config);
+  constructor(private readonly config: KafkaExactlyOnceManagerConfig) {
+    this.kafka = new Kafka(config.kafkaConfig);
     this.logger = this.kafka.logger();
   }
 
@@ -40,7 +36,7 @@ export class KafkaExactlyOnceManager {
     sourceTopic: string,
     sourcePartition: number
   ): string => {
-    return `${this.appId}-${sourceTopic}-${sourcePartition}`;
+    return `${this.config.transactionIdPrefix}-${sourceTopic}-${sourcePartition}`;
   };
 
   /**
@@ -88,27 +84,26 @@ export class KafkaExactlyOnceManager {
     this.logger.info(this.logPrefix + "finished rebalance cleanup");
   };
 
-  private readonly getExactlyOnceCompatibleConsumer =
-    async (): Promise<Consumer> => {
-      if (this.consumer) {
-        return this.consumer;
-      } else {
-        this.logger.info(this.logPrefix + "allocating consumer");
-        this.consumer = this.kafka.consumer({
-          ...this.createConsumerConfig,
-          readUncommitted: false,
-        });
+  readonly getExactlyOnceCompatibleConsumer = async (): Promise<Consumer> => {
+    if (this.consumer) {
+      return this.consumer;
+    } else {
+      this.logger.info(this.logPrefix + "allocating consumer");
+      this.consumer = this.kafka.consumer({
+        ...this.config.createConsumerConfig,
+        readUncommitted: false,
+      });
 
-        await this.consumer.connect();
+      await this.consumer.connect();
 
-        this.consumer.on("consumer.rebalancing", () => void this.onRebalance());
+      this.consumer.on("consumer.rebalancing", () => void this.onRebalance());
 
-        this.logger.info(this.logPrefix + "allocated consumer");
-        return this.consumer;
-      }
-    };
+      this.logger.info(this.logPrefix + "allocated consumer");
+      return this.consumer;
+    }
+  };
 
-  private readonly getExactlyOnceCompatibleProducer = async (
+  readonly getExactlyOnceCompatibleProducer = async (
     sourceTopic: string,
     sourcePartition: number
   ): Promise<Producer> => {
@@ -127,7 +122,7 @@ export class KafkaExactlyOnceManager {
       this.logger.info(this.logPrefix + "allocating producer");
 
       const newProducer = this.kafka.producer({
-        ...this.createProducerOptions,
+        ...this.config.createProducerOptions,
         idempotent: true,
         maxInFlightRequests: 1,
         transactionalId,
@@ -142,51 +137,7 @@ export class KafkaExactlyOnceManager {
     }
   };
 
-  readonly registerExactlyOnceProcessor = async (
-    processor: (event: EachMessagePayload) => Promise<Message>,
-    subscribeParams: Parameters<Consumer["subscribe"]>,
-    sinkTopic: string,
-    compression?: CompressionTypes
-  ): Promise<void> => {
-    const consumer = await this.getExactlyOnceCompatibleConsumer();
-
-    await consumer.subscribe(...subscribeParams);
-
-    await consumer.run({
-      autoCommit: false,
-      eachMessage: async (payload) => {
-        const output = await processor(payload);
-
-        const producer = await this.getExactlyOnceCompatibleProducer(
-          sinkTopic,
-          payload.partition
-        );
-        const transaction = await producer.transaction();
-
-        await transaction.send({
-          topic: sinkTopic,
-          messages: [output],
-          acks: -1, // All brokers must ack - required for EOS.
-          compression,
-        });
-
-        await transaction.sendOffsets({
-          consumerGroupId: this.createConsumerConfig.groupId,
-          topics: [
-            {
-              topic: payload.topic,
-              partitions: [
-                {
-                  partition: payload.partition,
-                  offset: payload.message.offset,
-                },
-              ],
-            },
-          ],
-        });
-
-        await transaction.commit();
-      },
-    });
+  readonly getConsumerGroupId = () => {
+    return this.config.createConsumerConfig.groupId;
   };
 }
