@@ -36,11 +36,11 @@ export class KafkaExactlyOnceExecutor {
       eachMessage: async (payload) => {
         const output = await this.executorConfig.processor(payload);
 
-        const producer = await this.manager.getExactlyOnceCompatibleProducer(
-          this.executorConfig.sinkTopic,
-          payload.partition
-        );
-        const transaction = await producer.transaction();
+        const transaction =
+          await this.manager.getExactlyOnceCompatibleTransaction(
+            this.executorConfig.sinkTopic,
+            payload.partition
+          );
 
         await transaction.send({
           topic: this.executorConfig.sinkTopic,

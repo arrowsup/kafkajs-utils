@@ -6,10 +6,11 @@ import {
   Logger,
   Producer,
   ProducerConfig,
+  Transaction,
 } from "kafkajs";
 
 export type KafkaExactlyOnceManagerConfig = {
-  transactionIdPrefix: string;
+  transactionalIdPrefix: string;
   kafkaConfig: KafkaConfig;
   createConsumerConfig: Omit<ConsumerConfig, "readUncommitted">;
   createProducerOptions: Omit<
@@ -18,10 +19,19 @@ export type KafkaExactlyOnceManagerConfig = {
   >;
 };
 
+/**
+ * Manages a consumer and set of producers that are configured for
+ * Exactly Once Semantics (EOS) for the given transactionalIdPrefix.
+ *
+ * TransactionIds are determined by source topic and partition.
+ * See [Choosing a transactionalId](https://kafka.js.org/docs/transactions#choosing-a-transactionalid)
+ * for more information.
+ */
 export class KafkaExactlyOnceManager {
+  private consumer: Consumer | undefined = undefined;
+
   /** Map of transactionalId -> Producer. */
   private readonly producerMap: Map<string, Producer> = new Map();
-  private consumer: Consumer | undefined = undefined;
   private readonly kafka: Kafka;
   private readonly logger: Logger;
 
@@ -36,7 +46,7 @@ export class KafkaExactlyOnceManager {
     sourceTopic: string,
     sourcePartition: number
   ): string => {
-    return `${this.config.transactionIdPrefix}-${sourceTopic}-${sourcePartition}`;
+    return `${this.config.transactionalIdPrefix}-${sourceTopic}-${sourcePartition}`;
   };
 
   /**
@@ -68,7 +78,7 @@ export class KafkaExactlyOnceManager {
   };
 
   /**
-   * Remove all references to producers and consumers and disconnect them.
+   * Remove all references to any allocated producers and consumers and disconnect them.
    */
   readonly cleanUp = async (): Promise<void> => {
     // Stop consuming, then stop producing.
@@ -78,12 +88,17 @@ export class KafkaExactlyOnceManager {
 
   private readonly onRebalance = async () => {
     // Remove existing producers, so they can be recreated for
-    // their new topics / partitions.
+    // the new set of source topics + partitions our consumer is assigned.
     this.logger.info(this.logPrefix + "starting rebalance cleanup");
     await this.cleanUpProducers();
     this.logger.info(this.logPrefix + "finished rebalance cleanup");
   };
 
+  /**
+   * Get the EOS compatible consumer.
+   *
+   * @returns EOS compatible consumer.
+   */
   readonly getExactlyOnceCompatibleConsumer = async (): Promise<Consumer> => {
     if (this.consumer) {
       return this.consumer;
@@ -103,10 +118,18 @@ export class KafkaExactlyOnceManager {
     }
   };
 
-  readonly getExactlyOnceCompatibleProducer = async (
+  /**
+   * Returns a transaction allocated from a producer that has
+   * EOS configured for the given parameters.
+   *
+   * @param sourceTopic Source Topic data will be derived from.
+   * @param sourcePartition Source Partition data will be derived from.
+   * @returns Transaction object configured for the given parameters.
+   */
+  readonly getExactlyOnceCompatibleTransaction = async (
     sourceTopic: string,
     sourcePartition: number
-  ): Promise<Producer> => {
+  ): Promise<Transaction> => {
     const transactionalId = this.getTransactionalId(
       sourceTopic,
       sourcePartition
@@ -116,7 +139,7 @@ export class KafkaExactlyOnceManager {
 
     if (existingProducer) {
       // Already have a producer for this topic & read partition.
-      return existingProducer;
+      return existingProducer.transaction();
     } else {
       // No producer yet -> make one.
       this.logger.info(this.logPrefix + "allocating producer");
@@ -133,10 +156,13 @@ export class KafkaExactlyOnceManager {
       this.producerMap.set(transactionalId, newProducer);
 
       this.logger.info(this.logPrefix + "allocated producer");
-      return newProducer;
+      return newProducer.transaction();
     }
   };
 
+  /**
+   * @returns Consumer Group ID this manager was configured with.
+   */
   readonly getConsumerGroupId = () => {
     return this.config.createConsumerConfig.groupId;
   };
