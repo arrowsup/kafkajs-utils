@@ -3,6 +3,8 @@ import {
   Consumer,
   EachMessagePayload,
   Message,
+  ProducerRecord,
+  Transaction,
 } from "kafkajs";
 import {
   KafkaExactlyOnceManager,
@@ -12,8 +14,7 @@ import {
 type KafkaExactlyOnceOneToOneExecutorConfig = {
   processor: (event: EachMessagePayload) => Promise<Message>;
   subscribeParams: Parameters<Consumer["subscribe"]>;
-  sinkTopic: string;
-  compression?: CompressionTypes;
+  sendParams: Omit<Parameters<Transaction["send"]>, "messages" | "acks">;
 };
 
 export class KafkaExactlyOnceOneToOneExecutor {
@@ -38,15 +39,14 @@ export class KafkaExactlyOnceOneToOneExecutor {
 
         const transaction =
           await this.manager.getExactlyOnceCompatibleTransaction(
-            this.executorConfig.sinkTopic,
+            payload.topic,
             payload.partition
           );
 
         await transaction.send({
-          topic: this.executorConfig.sinkTopic,
+          ...this.executorConfig.sendParams[0],
           messages: [output],
           acks: -1, // All brokers must ack - required for EOS.
-          compression: this.executorConfig.compression,
         });
 
         await transaction.sendOffsets({
