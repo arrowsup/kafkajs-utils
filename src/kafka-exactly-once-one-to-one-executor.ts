@@ -9,19 +9,19 @@ import {
   KafkaExactlyOnceManagerConfig,
 } from "./kafka-exactly-once-manager";
 
-type KafkaExactlyOnceExecutorConfig = {
+type KafkaExactlyOnceOneToOneExecutorConfig = {
   processor: (event: EachMessagePayload) => Promise<Message>;
   subscribeParams: Parameters<Consumer["subscribe"]>;
   sinkTopic: string;
   compression?: CompressionTypes;
 };
 
-export class KafkaExactlyOnceExecutor {
+export class KafkaExactlyOnceOneToOneExecutor {
   readonly manager: KafkaExactlyOnceManager;
 
   constructor(
     managerConfig: KafkaExactlyOnceManagerConfig,
-    private readonly executorConfig: KafkaExactlyOnceExecutorConfig
+    private readonly executorConfig: KafkaExactlyOnceOneToOneExecutorConfig
   ) {
     this.manager = new KafkaExactlyOnceManager(managerConfig);
   }
