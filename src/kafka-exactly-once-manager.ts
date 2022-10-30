@@ -26,6 +26,8 @@ export type KafkaExactlyOnceManagerConfig = {
  * TransactionIds are determined by source topic and partition.
  * See [Choosing a transactionalId](https://kafka.js.org/docs/transactions#choosing-a-transactionalid)
  * for more information.
+ *
+ * This manager assumes a single source topic.
  */
 export class KafkaExactlyOnceManager {
   private consumer: Consumer | undefined = undefined;
