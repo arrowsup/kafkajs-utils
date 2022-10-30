@@ -7,9 +7,9 @@ import {
   Transaction,
 } from "kafkajs";
 import {
-  KafkaExactlyOnceManager,
-  KafkaExactlyOnceManagerConfig,
-} from "./kafka-exactly-once-manager";
+  KafkaOneToNExactlyOnceManager,
+  KafkaOneToNExactlyOnceManagerConfig,
+} from "./kafka-one-to-n-exactly-once-manager";
 
 type KafkaExactlyOnceOneToOneExecutorConfig = {
   processor: (event: EachMessagePayload) => Promise<Message>;
@@ -18,13 +18,13 @@ type KafkaExactlyOnceOneToOneExecutorConfig = {
 };
 
 export class KafkaExactlyOnceOneToOneExecutor {
-  readonly manager: KafkaExactlyOnceManager;
+  readonly manager: KafkaOneToNExactlyOnceManager;
 
   constructor(
-    managerConfig: KafkaExactlyOnceManagerConfig,
+    managerConfig: KafkaOneToNExactlyOnceManagerConfig,
     private readonly executorConfig: KafkaExactlyOnceOneToOneExecutorConfig
   ) {
-    this.manager = new KafkaExactlyOnceManager(managerConfig);
+    this.manager = new KafkaOneToNExactlyOnceManager(managerConfig);
   }
 
   readonly init = async (): Promise<void> => {

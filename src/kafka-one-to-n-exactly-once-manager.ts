@@ -9,7 +9,7 @@ import {
   Transaction,
 } from "kafkajs";
 
-export type KafkaExactlyOnceManagerConfig = {
+export type KafkaOneToNExactlyOnceManagerConfig = {
   transactionalIdPrefix: string;
   kafkaConfig: KafkaConfig;
   createConsumerConfig: Omit<ConsumerConfig, "readUncommitted">;
@@ -20,7 +20,7 @@ export type KafkaExactlyOnceManagerConfig = {
 };
 
 /**
- * Manages a consumer and set of producers that are configured for
+ * Manages a single consumer and set of producers that are configured for
  * Exactly Once Semantics (EOS) for the given transactionalIdPrefix.
  *
  * TransactionIds are determined by source topic and partition.
@@ -29,7 +29,7 @@ export type KafkaExactlyOnceManagerConfig = {
  *
  * This manager assumes a single source topic.
  */
-export class KafkaExactlyOnceManager {
+export class KafkaOneToNExactlyOnceManager {
   private consumer: Consumer | undefined = undefined;
 
   /** Map of transactionalId -> Producer. */
@@ -37,12 +37,12 @@ export class KafkaExactlyOnceManager {
   private readonly kafka: Kafka;
   private readonly logger: Logger;
 
-  constructor(private readonly config: KafkaExactlyOnceManagerConfig) {
+  constructor(private readonly config: KafkaOneToNExactlyOnceManagerConfig) {
     this.kafka = new Kafka(config.kafkaConfig);
     this.logger = this.kafka.logger();
   }
 
-  private readonly logPrefix = KafkaExactlyOnceManager.name + ": ";
+  private readonly logPrefix = KafkaOneToNExactlyOnceManager.name + ": ";
 
   private readonly getTransactionalId = (
     sourceTopic: string,
