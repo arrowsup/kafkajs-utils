@@ -2,6 +2,7 @@ import {
   CompressionTypes,
   Consumer,
   EachMessagePayload,
+  Logger,
   Message,
   ProducerRecord,
   Transaction,
@@ -28,18 +29,37 @@ type KafkaOneToNExactlyOnceExecutorConfig = {
 /**
  * Manages exactly once transactions for a single source topic & message to a
  * set of sink topics (possible with multiple messages destined to each sink topic).
+ *
+ * Be sure to call `init` after creating this object.
  */
 export class KafkaOneToNExactlyOnceExecutor {
   readonly manager: KafkaOneToNExactlyOnceManager;
+  private readonly logger: Logger;
+  private initialized = false;
 
   constructor(
     managerConfig: KafkaOneToNExactlyOnceManagerConfig,
     private readonly executorConfig: KafkaOneToNExactlyOnceExecutorConfig
   ) {
     this.manager = new KafkaOneToNExactlyOnceManager(managerConfig);
+    this.logger = this.manager.kafka.logger();
   }
 
+  private readonly logPrefix = KafkaOneToNExactlyOnceExecutor.name + ": ";
+
+  readonly cleanUp = async () => {
+    await this.manager.cleanUp();
+  };
+
   readonly init = async (): Promise<void> => {
+    if (this.initialized) {
+      const err = "already initialized";
+      this.logger.error(this.logPrefix + err);
+      throw new Error(err);
+    }
+
+    this.initialized = true;
+
     const consumer = await this.manager.getExactlyOnceCompatibleConsumer();
 
     await consumer.subscribe(...this.executorConfig.subscribeParams);

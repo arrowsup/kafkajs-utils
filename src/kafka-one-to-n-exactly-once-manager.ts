@@ -34,8 +34,9 @@ export class KafkaOneToNExactlyOnceManager {
 
   /** Map of transactionalId -> Producer. */
   private readonly producerMap: Map<string, Producer> = new Map();
-  private readonly kafka: Kafka;
   private readonly logger: Logger;
+
+  readonly kafka: Kafka;
 
   constructor(private readonly config: KafkaOneToNExactlyOnceManagerConfig) {
     this.kafka = new Kafka(config.kafkaConfig);
