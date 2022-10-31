@@ -11,18 +11,30 @@ import {
   KafkaOneToNExactlyOnceManagerConfig,
 } from "./kafka-one-to-n-exactly-once-manager";
 
-type KafkaExactlyOnceOneToOneExecutorConfig = {
-  processor: (event: EachMessagePayload) => Promise<Message>;
+// Receive a single message and return messages for a set of topics.
+type Processor = (
+  event: EachMessagePayload
+) => Promise<{ topic: string; messages: Message[] }[]>;
+
+type KafkaOneToNExactlyOnceExecutorConfig = {
+  processor: Processor;
   subscribeParams: Parameters<Consumer["subscribe"]>;
-  sendParams: Omit<Parameters<Transaction["send"]>, "messages" | "acks">;
+  sendParams: Omit<
+    Parameters<Transaction["send"]>,
+    "messages" | "acks" | "topic"
+  >;
 };
 
-export class KafkaExactlyOnceOneToOneExecutor {
+/**
+ * Manages exactly once transactions for a single source topic & message to a
+ * set of sink topics (possible with multiple messages destined to each sink topic).
+ */
+export class KafkaOneToNExactlyOnceExecutor {
   readonly manager: KafkaOneToNExactlyOnceManager;
 
   constructor(
     managerConfig: KafkaOneToNExactlyOnceManagerConfig,
-    private readonly executorConfig: KafkaExactlyOnceOneToOneExecutorConfig
+    private readonly executorConfig: KafkaOneToNExactlyOnceExecutorConfig
   ) {
     this.manager = new KafkaOneToNExactlyOnceManager(managerConfig);
   }
@@ -35,7 +47,7 @@ export class KafkaExactlyOnceOneToOneExecutor {
     await consumer.run({
       autoCommit: false,
       eachMessage: async (payload) => {
-        const output = await this.executorConfig.processor(payload);
+        const outputs = await this.executorConfig.processor(payload);
 
         const transaction =
           await this.manager.getExactlyOnceCompatibleTransaction(
@@ -43,11 +55,14 @@ export class KafkaExactlyOnceOneToOneExecutor {
             payload.partition
           );
 
-        await transaction.send({
-          ...this.executorConfig.sendParams[0],
-          messages: [output],
-          acks: -1, // All brokers must ack - required for EOS.
-        });
+        for (const output of outputs) {
+          await transaction.send({
+            ...this.executorConfig.sendParams[0],
+            messages: output.messages,
+            topic: output.topic,
+            acks: -1, // All brokers must ack - required for EOS.
+          });
+        }
 
         await transaction.sendOffsets({
           consumerGroupId: this.manager.getConsumerGroupId(),
