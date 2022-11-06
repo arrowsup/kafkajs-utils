@@ -31,7 +31,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
     const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
     const messageValue = "foo";
 
-    txn.send({
+    await txn.send({
       topic: topicB,
       messages: [
         {
@@ -39,21 +39,21 @@ describe("KafkaOneToNExactlyOnceManager", () => {
         },
       ],
     });
-    txn.commit();
+    await txn.commit();
 
-    await consumer.subscribe({ topic: topicB });
+    await consumer.subscribe({ topic: topicB, fromBeginning: true });
 
     await new Promise((resolve) => {
       consumer.run({
         autoCommit: false,
         eachMessage: async (payload) => {
           // Expect the value we sent to be received.
-          expect(payload.message.value).toEqual(messageValue);
+          expect(payload.message.value?.toString()).toEqual(messageValue);
 
           // If this doesn't hit, the test will time out.
           resolve(undefined);
         },
       });
     });
-  });
+  }, 10000);
 });
