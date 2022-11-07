@@ -44,7 +44,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
     await consumer.subscribe({ topic: topicB, fromBeginning: true });
 
     await new Promise((resolve) => {
-      consumer.run({
+      void consumer.run({
         autoCommit: false,
         eachMessage: async (payload) => {
           // Expect the value we sent to be received.
