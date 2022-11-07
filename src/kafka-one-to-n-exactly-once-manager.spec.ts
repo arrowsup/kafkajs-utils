@@ -85,6 +85,8 @@ describe("KafkaOneToNExactlyOnceManager", () => {
 
       const producedMessageValue = randomStringMessage();
       const consumer = await service.getExactlyOnceCompatibleConsumer();
+
+      // Start a consumer to read with a promise that resolves when we've read a message.
       await consumer.subscribe({ topic: topicB, fromBeginning: true });
 
       const dataConsumedPromise = new Promise(
@@ -110,6 +112,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
           })
       );
 
+      // Send a message.
       const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
 
       await txn.send({
