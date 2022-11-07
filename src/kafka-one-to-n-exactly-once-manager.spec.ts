@@ -37,35 +37,36 @@ describe("KafkaOneToNExactlyOnceManager", () => {
   it("round trips", async () => {
     const consumer = await service.getExactlyOnceCompatibleConsumer();
     const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
-    const messageValue = "foo";
+    const producedMessageValue = "foo";
 
+    // Send a single string.
     await txn.send({
       topic: topicB,
       messages: [
         {
-          value: messageValue,
+          value: producedMessageValue,
         },
       ],
     });
     await txn.commit();
 
+    // Read the string, then make sure it matches.
     await consumer.subscribe({ topic: topicB, fromBeginning: true });
 
-    await new Promise((resolve) => {
+    const consumedMessageValue = await new Promise<Buffer | null>((resolve) => {
       void consumer.run({
         autoCommit: false,
         eachMessage: (payload) => {
-          // Expect the value we sent to be received.
-          expect(payload.message.value?.toString()).toEqual(messageValue);
-
           // If this doesn't hit, the test will time out.
-          resolve(undefined);
+          resolve(payload.message.value);
 
           // eachMessage returns a Promise.
           return Promise.resolve();
         },
       });
     });
+
+    expect(consumedMessageValue?.toString()).toEqual(producedMessageValue);
   });
 
   describe("consumer", () => {
@@ -73,6 +74,59 @@ describe("KafkaOneToNExactlyOnceManager", () => {
       const consumer1 = await service.getExactlyOnceCompatibleConsumer();
       const consumer2 = await service.getExactlyOnceCompatibleConsumer();
       expect(consumer1).toBe(consumer2);
+    });
+
+    it("will not read uncommitted", async () => {
+      // Updated to the timestamp we send a message.  We should read after this timestamp.
+      let commitTimeMs = Number.MAX_SAFE_INTEGER;
+
+      const producedMessageValue = "abc";
+      const consumer = await service.getExactlyOnceCompatibleConsumer();
+      await consumer.subscribe({ topic: topicB, fromBeginning: true });
+
+      const dataConsumedPromise = new Promise(
+        (resolve) =>
+          void consumer.run({
+            autoCommit: false,
+            eachMessage: (payload) => {
+              // Make sure this is the produced value we're expecing.
+              expect(payload.message.value?.toString()).toEqual(
+                producedMessageValue
+              );
+
+              // Make sure we're reading after the transaction was committed.
+              const now = new Date().valueOf();
+              expect(now).toBeGreaterThanOrEqual(commitTimeMs);
+
+              // Resolve the dataConsumedPromise so the test can end.
+              resolve(undefined);
+
+              // eachMessage returns a promise.
+              return Promise.resolve();
+            },
+          })
+      );
+
+      const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
+
+      await txn.send({
+        topic: topicB,
+        messages: [
+          {
+            value: producedMessageValue,
+          },
+        ],
+      });
+
+      // Small sleep to make failures more likely (this is a race condition failure mode).
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      // Commit time is right before, but comfortably after send time.
+      commitTimeMs = new Date().valueOf();
+      await txn.commit();
+
+      // Wait for our data consumed promise.
+      await dataConsumedPromise;
     });
   });
 });
