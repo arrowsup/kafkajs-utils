@@ -5,6 +5,7 @@ import { testKafkaConfig } from "./test-kafka-config";
 describe("KafkaOneToNExactlyOnceManager", () => {
   const topicA = "topic-a";
   const topicB = "topic-b";
+  const allTopics = [topicA, topicB];
 
   let service: KafkaOneToNExactlyOnceManager;
 
@@ -23,6 +24,14 @@ describe("KafkaOneToNExactlyOnceManager", () => {
 
   afterEach(async () => {
     await service.cleanUp();
+
+    // Clean up topics we created
+    const admin = service.kafka.admin();
+    const existingTopics = await admin.listTopics();
+    await admin.deleteTopics({
+      topics: existingTopics.filter((t) => allTopics.includes(t)),
+    });
+    await admin.disconnect();
   });
 
   it("round trips", async () => {
