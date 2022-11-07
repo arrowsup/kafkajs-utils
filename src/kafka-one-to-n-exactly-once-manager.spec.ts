@@ -67,4 +67,12 @@ describe("KafkaOneToNExactlyOnceManager", () => {
       });
     });
   });
+
+  describe("consumer", () => {
+    it("returns cached consumer on second call", async () => {
+      const consumer1 = await service.getExactlyOnceCompatibleConsumer();
+      const consumer2 = await service.getExactlyOnceCompatibleConsumer();
+      expect(consumer1).toBe(consumer2);
+    });
+  });
 });
