@@ -1,10 +1,8 @@
 import {
-  CompressionTypes,
   Consumer,
   EachMessagePayload,
   Logger,
   Message,
-  ProducerRecord,
   Transaction,
 } from "kafkajs";
 import {

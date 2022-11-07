@@ -1,11 +1,10 @@
-import { Partitioners, ResourcePatternTypes } from "kafkajs";
+import { Partitioners } from "kafkajs";
 import { KafkaOneToNExactlyOnceManager } from "./kafka-one-to-n-exactly-once-manager";
 import { testKafkaConfig } from "./test-kafka-config";
 
 describe("KafkaOneToNExactlyOnceManager", () => {
   const topicA = "topic-a";
   const topicB = "topic-b";
-  const topicC = "topic-c";
 
   let service: KafkaOneToNExactlyOnceManager;
 
@@ -46,12 +45,15 @@ describe("KafkaOneToNExactlyOnceManager", () => {
     await new Promise((resolve) => {
       void consumer.run({
         autoCommit: false,
-        eachMessage: async (payload) => {
+        eachMessage: (payload) => {
           // Expect the value we sent to be received.
           expect(payload.message.value?.toString()).toEqual(messageValue);
 
           // If this doesn't hit, the test will time out.
           resolve(undefined);
+
+          // eachMessage returns a Promise.
+          return Promise.resolve();
         },
       });
     });
