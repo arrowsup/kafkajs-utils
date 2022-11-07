@@ -1,4 +1,4 @@
-import { Partitioners } from "kafkajs";
+import { Consumer, Partitioners, EachMessageHandler } from "kafkajs";
 import { KafkaOneToNExactlyOnceManager } from "./kafka-one-to-n-exactly-once-manager";
 import { testKafkaConfig } from "./test-kafka-config";
 import crypto from "crypto";
@@ -38,6 +38,42 @@ describe("KafkaOneToNExactlyOnceManager", () => {
     await admin.disconnect();
   });
 
+  /** Simple helper function to process messages for a consumer.
+   *
+   * This handles forwarding errors to jest if the message handler fails (i.e. expect fails),
+   * which doesn't happen normally since the eachMessage handler is running "outside" of jest.
+   *
+   * In your message handler, call the given resolve() from the wrapper to indicate
+   * the test case is complete.  If resolve isn't called, and you await the resturned promise,
+   * the test will timeout.
+   *
+   * @param consumer Consumer to consume from.
+   * @param eachMessageWrapper Given a resolve function and should return a message handler.
+   * @return Promise that will be fulfilled when the given message handler calls resolve().
+   */
+  const consumptionHelper = <T = unknown>(
+    consumer: Consumer,
+    eachMessageWrapper: (resolve: (value: T) => void) => EachMessageHandler
+  ) => {
+    return new Promise<T>(
+      (resolve, reject) =>
+        void consumer.run({
+          autoCommit: false,
+          eachMessage: async (...args) => {
+            const eachMessageFn = eachMessageWrapper(resolve);
+
+            // This callback won't have errors forwarded up to jest so we have
+            // to pass any errors manually.
+            try {
+              await eachMessageFn(...args);
+            } catch (e) {
+              reject(e);
+            }
+          },
+        })
+    );
+  };
+
   it("round trips", async () => {
     const consumer = await service.getExactlyOnceCompatibleConsumer();
     const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
@@ -56,20 +92,10 @@ describe("KafkaOneToNExactlyOnceManager", () => {
 
     // Read the string, then make sure it matches.
     await consumer.subscribe({ topic: topicB, fromBeginning: true });
-
-    const consumedMessageValue = await new Promise<Buffer | null>((resolve) => {
-      void consumer.run({
-        autoCommit: false,
-        eachMessage: (payload) => {
-          // If this doesn't hit, the test will time out.
-          resolve(payload.message.value);
-
-          // eachMessage returns a Promise.
-          return Promise.resolve();
-        },
-      });
-    });
-
+    const consumedMessageValue = await consumptionHelper<Buffer | null>(
+      consumer,
+      (resolve) => (payload) => Promise.resolve(resolve(payload.message.value))
+    );
     expect(consumedMessageValue?.toString()).toEqual(producedMessageValue);
   });
 
@@ -94,38 +120,28 @@ describe("KafkaOneToNExactlyOnceManager", () => {
         fromBeginning: true,
       });
 
-      await new Promise(
-        (resolve, reject) =>
-          void consumer.run({
-            autoCommit: false,
-            eachMessage: (payload) => {
-              try {
-                // Transactional ID is after first four bytes.
-                const txnId = Uint8Array.prototype.slice
-                  .call(payload.message.key, 4)
-                  .toString();
-                const expectedTxnId =
-                  transactionalIdPrefix +
-                  "-" +
-                  srcTopic +
-                  "-" +
-                  srcPartition.toString();
+      await consumptionHelper(consumer, (resolve) => (payload) => {
+        // Transactional ID is after first four bytes.
+        const txnId = Uint8Array.prototype.slice
+          .call(payload.message.key, 4)
+          .toString();
+        const expectedTxnId =
+          transactionalIdPrefix +
+          "-" +
+          srcTopic +
+          "-" +
+          srcPartition.toString();
 
-                if (txnId !== expectedTxnId) {
-                  // Not our transaction (there will be others) -> continue.
-                  return Promise.resolve();
-                }
+        if (txnId !== expectedTxnId) {
+          // Not our transaction (there will be others) -> continue.
+          return Promise.resolve();
+        }
 
-                // Test will fail if we don't resolve here (found our transaction ID).
-                resolve(undefined);
-              } catch (e) {
-                reject(e);
-              }
+        // Test will timeout if we don't resolve here (i.e. we found our transaction ID).
+        resolve(undefined);
 
-              return Promise.resolve();
-            },
-          })
-      );
+        return Promise.resolve();
+      });
     });
   });
 
@@ -146,33 +162,24 @@ describe("KafkaOneToNExactlyOnceManager", () => {
       // Start a consumer to read with a promise that resolves when we've read a message.
       await consumer.subscribe({ topic: topicB, fromBeginning: true });
 
-      const dataConsumedPromise = new Promise(
-        (resolve, reject) =>
-          void consumer.run({
-            autoCommit: false,
-            eachMessage: (payload) => {
-              try {
-                // Make sure this is the produced value we're expecing.
-                expect(payload.message.value?.toString()).toEqual(
-                  producedMessageValue
-                );
+      const dataConsumedPromise = consumptionHelper(
+        consumer,
+        (resolve) => (payload) => {
+          // Make sure this is the produced value we're expecing.
+          expect(payload.message.value?.toString()).toEqual(
+            producedMessageValue
+          );
 
-                // Make sure we're reading after the transaction was committed.
-                const now = new Date().valueOf();
-                expect(now).toBeGreaterThanOrEqual(commitTimeMs);
+          // Make sure we're reading after the transaction was committed.
+          const now = new Date().valueOf();
+          expect(now).toBeGreaterThanOrEqual(commitTimeMs);
 
-                // Resolve the dataConsumedPromise so the test can end.
-                resolve(undefined);
-              } catch (e) {
-                // This callback won't have errors forwarded up to jest so we have
-                // to pass any errors manually.
-                reject(e);
-              }
+          // Resolve the dataConsumedPromise so the test can end.
+          resolve(undefined);
 
-              // eachMessage returns a promise.
-              return Promise.resolve();
-            },
-          })
+          // eachMessage returns a promise.
+          return Promise.resolve();
+        }
       );
 
       // Send a message.
