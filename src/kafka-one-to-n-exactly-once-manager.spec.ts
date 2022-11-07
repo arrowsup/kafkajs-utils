@@ -1,6 +1,9 @@
 import { Partitioners } from "kafkajs";
 import { KafkaOneToNExactlyOnceManager } from "./kafka-one-to-n-exactly-once-manager";
 import { testKafkaConfig } from "./test-kafka-config";
+import crypto from "crypto";
+
+const randomStringMessage = () => crypto.randomBytes(10).toString("hex");
 
 describe("KafkaOneToNExactlyOnceManager", () => {
   const topics = ["topic-a", "topic-b"];
@@ -37,7 +40,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
   it("round trips", async () => {
     const consumer = await service.getExactlyOnceCompatibleConsumer();
     const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
-    const producedMessageValue = "foo";
+    const producedMessageValue = randomStringMessage();
 
     // Send a single string.
     await txn.send({
@@ -80,7 +83,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
       // Updated to the timestamp we send a message.  We should read after this timestamp.
       let commitTimeMs = Number.MAX_SAFE_INTEGER;
 
-      const producedMessageValue = "abc";
+      const producedMessageValue = randomStringMessage();
       const consumer = await service.getExactlyOnceCompatibleConsumer();
       await consumer.subscribe({ topic: topicB, fromBeginning: true });
 
