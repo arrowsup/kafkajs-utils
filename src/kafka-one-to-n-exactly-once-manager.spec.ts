@@ -90,21 +90,27 @@ describe("KafkaOneToNExactlyOnceManager", () => {
       await consumer.subscribe({ topic: topicB, fromBeginning: true });
 
       const dataConsumedPromise = new Promise(
-        (resolve) =>
+        (resolve, reject) =>
           void consumer.run({
             autoCommit: false,
             eachMessage: (payload) => {
-              // Make sure this is the produced value we're expecing.
-              expect(payload.message.value?.toString()).toEqual(
-                producedMessageValue
-              );
+              try {
+                // Make sure this is the produced value we're expecing.
+                expect(payload.message.value?.toString()).toEqual(
+                  producedMessageValue
+                );
 
-              // Make sure we're reading after the transaction was committed.
-              const now = new Date().valueOf();
-              expect(now).toBeGreaterThanOrEqual(commitTimeMs);
+                // Make sure we're reading after the transaction was committed.
+                const now = new Date().valueOf();
+                expect(now).toBeGreaterThanOrEqual(commitTimeMs);
 
-              // Resolve the dataConsumedPromise so the test can end.
-              resolve(undefined);
+                // Resolve the dataConsumedPromise so the test can end.
+                resolve(undefined);
+              } catch (e) {
+                // This callback won't have errors forwarded up to jest so we have
+                // to pass any errors manually.
+                reject(e);
+              }
 
               // eachMessage returns a promise.
               return Promise.resolve();
