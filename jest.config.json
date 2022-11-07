@@ -2,5 +2,6 @@
   "transform": {
     "^.+\\.ts$": "ts-jest"
   },
-  "testRegex": "\\.spec.ts$"
+  "testRegex": "\\.spec.ts$",
+  "testTimeout": 15000
 }

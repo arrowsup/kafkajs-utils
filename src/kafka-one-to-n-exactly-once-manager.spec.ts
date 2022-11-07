@@ -3,9 +3,9 @@ import { KafkaOneToNExactlyOnceManager } from "./kafka-one-to-n-exactly-once-man
 import { testKafkaConfig } from "./test-kafka-config";
 
 describe("KafkaOneToNExactlyOnceManager", () => {
-  const topicA = "topic-a";
-  const topicB = "topic-b";
-  const allTopics = [topicA, topicB];
+  const topics = ["topic-a", "topic-b"];
+  const topicA = topics[0];
+  const topicB = topics[1];
 
   let service: KafkaOneToNExactlyOnceManager;
 
@@ -29,7 +29,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
     const admin = service.kafka.admin();
     const existingTopics = await admin.listTopics();
     await admin.deleteTopics({
-      topics: existingTopics.filter((t) => allTopics.includes(t)),
+      topics: existingTopics.filter((t) => topics.includes(t)),
     });
     await admin.disconnect();
   });
@@ -66,5 +66,5 @@ describe("KafkaOneToNExactlyOnceManager", () => {
         },
       });
     });
-  }, 10000);
+  });
 });
