@@ -3,18 +3,19 @@ import { KafkaOneToNExactlyOnceManager } from "./kafka-one-to-n-exactly-once-man
 import { testKafkaConfig } from "./test-kafka-config";
 import crypto from "crypto";
 
-const randomStringMessage = () => crypto.randomBytes(10).toString("hex");
+const randomShortString = () => crypto.randomBytes(10).toString("hex");
 
 describe("KafkaOneToNExactlyOnceManager", () => {
   const topics = ["topic-a", "topic-b"];
   const topicA = topics[0];
   const topicB = topics[1];
+  const transactionalIdPrefix = "txn-prefix";
 
   let service: KafkaOneToNExactlyOnceManager;
 
   beforeEach(() => {
     service = new KafkaOneToNExactlyOnceManager({
-      transactionalIdPrefix: "test",
+      transactionalIdPrefix: transactionalIdPrefix,
       kafkaConfig: testKafkaConfig,
       createConsumerConfig: {
         groupId: "test-consumer-group-1",
@@ -40,7 +41,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
   it("round trips", async () => {
     const consumer = await service.getExactlyOnceCompatibleConsumer();
     const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
-    const producedMessageValue = randomStringMessage();
+    const producedMessageValue = randomShortString();
 
     // Send a single string.
     await txn.send({
@@ -72,6 +73,62 @@ describe("KafkaOneToNExactlyOnceManager", () => {
     expect(consumedMessageValue?.toString()).toEqual(producedMessageValue);
   });
 
+  describe("producer", () => {
+    it("creates correct transactional id", async () => {
+      // Create a unique "source topic" and "source partition" our data is generated from.
+      const srcTopic = randomShortString();
+      const srcPartition = Math.floor(Math.random() * 10);
+
+      // Write a transaction.
+      const txn = await service.getExactlyOnceCompatibleTransaction(
+        srcTopic,
+        srcPartition
+      );
+      await txn.commit();
+
+      // Listen to the special, transaction state topic and make sure the
+      // correct transactionalId was generated.
+      const consumer = await service.getExactlyOnceCompatibleConsumer();
+      await consumer.subscribe({
+        topic: "__transaction_state",
+        fromBeginning: true,
+      });
+
+      await new Promise(
+        (resolve, reject) =>
+          void consumer.run({
+            autoCommit: false,
+            eachMessage: (payload) => {
+              try {
+                // Transactional ID is after first four bytes.
+                const txnId = Uint8Array.prototype.slice
+                  .call(payload.message.key, 4)
+                  .toString();
+                const expectedTxnId =
+                  transactionalIdPrefix +
+                  "-" +
+                  srcTopic +
+                  "-" +
+                  srcPartition.toString();
+
+                if (txnId !== expectedTxnId) {
+                  // Not our transaction (there will be others) -> continue.
+                  return Promise.resolve();
+                }
+
+                // Test will fail if we don't resolve here (found our transaction ID).
+                resolve(undefined);
+              } catch (e) {
+                reject(e);
+              }
+
+              return Promise.resolve();
+            },
+          })
+      );
+    });
+  });
+
   describe("consumer", () => {
     it("returns cached consumer on second call", async () => {
       const consumer1 = await service.getExactlyOnceCompatibleConsumer();
@@ -83,7 +140,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
       // Updated to the timestamp we send a message.  We should read after this timestamp.
       let commitTimeMs = Number.MAX_SAFE_INTEGER;
 
-      const producedMessageValue = randomStringMessage();
+      const producedMessageValue = randomShortString();
       const consumer = await service.getExactlyOnceCompatibleConsumer();
 
       // Start a consumer to read with a promise that resolves when we've read a message.
