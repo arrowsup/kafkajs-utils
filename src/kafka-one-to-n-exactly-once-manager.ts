@@ -32,7 +32,7 @@ export type KafkaOneToNExactlyOnceManagerConfig = {
 export class KafkaOneToNExactlyOnceManager {
   private consumer: Consumer | undefined = undefined;
 
-  /** Map of transactionalId -> Producer. */
+  /** Map of transactionalId -> Producer.  */
   private readonly producerMap: Map<string, Producer> = new Map();
   private readonly logger: Logger;
 
@@ -89,14 +89,6 @@ export class KafkaOneToNExactlyOnceManager {
     await this.cleanUpProducers();
   };
 
-  private readonly onRebalance = async () => {
-    // Remove existing producers, so they can be recreated for
-    // the new set of source topics + partitions our consumer is assigned.
-    this.logger.info(this.logPrefix + "starting rebalance cleanup");
-    await this.cleanUpProducers();
-    this.logger.info(this.logPrefix + "finished rebalance cleanup");
-  };
-
   /**
    * Get the EOS compatible consumer.
    *
@@ -113,8 +105,6 @@ export class KafkaOneToNExactlyOnceManager {
       });
 
       await this.consumer.connect();
-
-      this.consumer.on("consumer.rebalancing", () => void this.onRebalance());
 
       this.logger.info(this.logPrefix + "allocated consumer");
       return this.consumer;
