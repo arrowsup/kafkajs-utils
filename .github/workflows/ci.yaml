@@ -31,12 +31,6 @@ jobs:
         uses: juliangruber/sleep-action@v1
         with:
           time: 31s
-      - name: Create Topics
-        run: docker-compose -f docker-compose.yml
-          exec -T kafka kafka-topics --bootstrap-server 127.0.0.1:9092
-          --create --partitions 1 --replication-factor 1 --topic test-topic-a test-topic-b
-        env:
-          COMPOSE_INTERACTIVE_NO_CLI: 1
       - name: Run Test
         run: npm run test
       - name: Services Stop
