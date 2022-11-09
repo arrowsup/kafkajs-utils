@@ -1,6 +1,6 @@
 {
   "name": "kafkajs-utils",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "KafkaJS helper utilities",
   "main": "index.js",
   "scripts": {
