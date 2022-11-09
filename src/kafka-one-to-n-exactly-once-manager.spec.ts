@@ -100,47 +100,29 @@ describe("KafkaOneToNExactlyOnceManager", () => {
   });
 
   describe("producer", () => {
-    it("creates correct transactional id", async () => {
+    let producerSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      producerSpy = jest.spyOn(service.kafka, "producer");
+    });
+
+    it("calls producer w/ correct params", async () => {
       // Create a unique "source topic" and "source partition" our data is generated from.
       const srcTopic = randomShortString();
       const srcPartition = Math.floor(Math.random() * 10);
 
-      // Write a transaction.
-      const txn = await service.getExactlyOnceCompatibleTransaction(
-        srcTopic,
-        srcPartition
-      );
-      await txn.commit();
+      // Create a producer.
+      await service.getExactlyOnceCompatibleTransaction(srcTopic, srcPartition);
 
-      // Listen to the special, transaction state topic and make sure the
-      // correct transactionalId was generated.
-      const consumer = await service.getExactlyOnceCompatibleConsumer();
-      await consumer.subscribe({
-        topic: "__transaction_state",
-        fromBeginning: true,
-      });
+      // Verified we passed the right params.
+      const expectedTxnId =
+        transactionalIdPrefix + "-" + srcTopic + "-" + srcPartition.toString();
 
-      await consumptionHelper(consumer, (resolve) => (payload) => {
-        // Transactional ID is after first four bytes.
-        const txnId = Uint8Array.prototype.slice
-          .call(payload.message.key, 4)
-          .toString();
-        const expectedTxnId =
-          transactionalIdPrefix +
-          "-" +
-          srcTopic +
-          "-" +
-          srcPartition.toString();
-
-        if (txnId !== expectedTxnId) {
-          // Not our transaction (there will be others) -> continue.
-          return Promise.resolve();
-        }
-
-        // Test will timeout if we don't resolve here (i.e. we found our transaction ID).
-        resolve(undefined);
-
-        return Promise.resolve();
+      expect(producerSpy).toHaveBeenCalledWith({
+        createPartitioner: Partitioners.DefaultPartitioner,
+        idempotent: true,
+        maxInFlightRequests: 1,
+        transactionalId: expectedTxnId,
       });
     });
   });
