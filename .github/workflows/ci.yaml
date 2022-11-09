@@ -28,7 +28,7 @@ jobs:
       - name: Sleep for Containers
         uses: juliangruber/sleep-action@v1
         with:
-          time: 30s
+          time: 31s
       - name: Create Topics
         run: docker-compose -f deployments/test/docker-compose.yml
           exec -T kafka kafka-topics --bootstrap-server 127.0.0.1:9092
