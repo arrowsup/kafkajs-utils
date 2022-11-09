@@ -128,63 +128,25 @@ describe("KafkaOneToNExactlyOnceManager", () => {
   });
 
   describe("consumer", () => {
+    let consumerSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      consumerSpy = jest.spyOn(service.kafka, "consumer");
+    });
+
     it("returns cached consumer on second call", async () => {
       const consumer1 = await service.getExactlyOnceCompatibleConsumer();
       const consumer2 = await service.getExactlyOnceCompatibleConsumer();
       expect(consumer1).toBe(consumer2);
     });
 
-    it("will not read uncommitted", async () => {
-      // Updated to the timestamp we send a message.  We should read after this timestamp.
-      let commitTimeMs = Number.MAX_SAFE_INTEGER;
+    it("calls consumer with the right params", async () => {
+      await service.getExactlyOnceCompatibleConsumer();
 
-      const producedMessageValue = randomShortString();
-      const consumer = await service.getExactlyOnceCompatibleConsumer();
-
-      // Start a consumer to read with a promise that resolves when we've read a message.
-      await consumer.subscribe({ topic: topicB, fromBeginning: true });
-
-      const dataConsumedPromise = consumptionHelper(
-        consumer,
-        (resolve) => (payload) => {
-          // Make sure this is the produced value we're expecing.
-          expect(payload.message.value?.toString()).toEqual(
-            producedMessageValue
-          );
-
-          // Make sure we're reading after the transaction was committed.
-          const now = new Date().valueOf();
-          expect(now).toBeGreaterThanOrEqual(commitTimeMs);
-
-          // Resolve the dataConsumedPromise so the test can end.
-          resolve(undefined);
-
-          // eachMessage returns a promise.
-          return Promise.resolve();
-        }
-      );
-
-      // Send a message.
-      const txn = await service.getExactlyOnceCompatibleTransaction(topicA, 1);
-
-      await txn.send({
-        topic: topicB,
-        messages: [
-          {
-            value: producedMessageValue,
-          },
-        ],
+      expect(consumerSpy).toHaveBeenCalledWith({
+        groupId: "test-consumer-group-1",
+        readUncommitted: false,
       });
-
-      // Small sleep to make failures more likely (this is a race condition failure mode).
-      await new Promise((resolve) => setTimeout(resolve, 250));
-
-      // Commit time is right before, but comfortably after send time.
-      commitTimeMs = new Date().valueOf();
-      await txn.commit();
-
-      // Wait for our data consumed promise.
-      await dataConsumedPromise;
     });
   });
 });
