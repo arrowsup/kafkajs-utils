@@ -11,15 +11,15 @@ import {
 } from "./kafka-one-to-n-exactly-once-manager";
 
 // Receive a single message and return messages for a set of topics.
-type Processor = (
+export type KafkaJsUtilsOneToNProcessor = (
   event: EachMessagePayload
 ) => Promise<{ topic: string; messages: Message[] }[]>;
 
 type KafkaOneToNExactlyOnceExecutorConfig = {
-  processor: Processor;
-  subscribeParams: Parameters<Consumer["subscribe"]>;
+  processor: KafkaJsUtilsOneToNProcessor;
+  subscribeParams: Parameters<Consumer["subscribe"]>[number];
   sendParams: Omit<
-    Parameters<Transaction["send"]>,
+    Parameters<Transaction["send"]>[number],
     "messages" | "acks" | "topic"
   >;
 };
@@ -60,7 +60,7 @@ export class KafkaOneToNExactlyOnceExecutor {
 
     const consumer = await this.manager.getExactlyOnceCompatibleConsumer();
 
-    await consumer.subscribe(...this.executorConfig.subscribeParams);
+    await consumer.subscribe(this.executorConfig.subscribeParams);
 
     await consumer.run({
       autoCommit: false,
@@ -75,7 +75,7 @@ export class KafkaOneToNExactlyOnceExecutor {
 
         for (const output of outputs) {
           await transaction.send({
-            ...this.executorConfig.sendParams[0],
+            ...this.executorConfig.sendParams,
             messages: output.messages,
             topic: output.topic,
             acks: -1, // All brokers must ack - required for EOS.
