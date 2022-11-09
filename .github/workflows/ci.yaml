@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-node@v2
         with:
           node-version: "18.12.0"
+      - name: Install deps
+        run: npm install
       - name: Build
         run: npm run build
       - name: Build Env Containers
