@@ -3,5 +3,5 @@
     "^.+\\.ts$": "ts-jest"
   },
   "testRegex": "\\.spec.ts$",
-  "testTimeout": 15000
+  "testTimeout": 30000
 }
