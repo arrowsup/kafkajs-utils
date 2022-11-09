@@ -1,17 +1,19 @@
 {
   "name": "kafkajs-utils",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "description": "KafkaJS helper utilities",
-  "main": "index.js",
+  "main": "build/index.js",
   "scripts": {
-    "build": "tsc",
+    "clean": "rm -rf build",
+    "build": "npm run clean && tsc",
     "format": "prettier --write .",
     "test": "npm run test:format && npm run test:lint && npm run test:jest",
     "test:jest": "jest",
     "test:format": "prettier --check .",
     "test:lint": "eslint . --max-warnings=0",
     "test:start-env": "docker-compose -f docker-compose.yml up",
-    "test:stop-env": "docker-compose -f docker-compose.yml down"
+    "test:stop-env": "docker-compose -f docker-compose.yml down",
+    "prepare": "npm run build"
   },
   "repository": {
     "type": "git",

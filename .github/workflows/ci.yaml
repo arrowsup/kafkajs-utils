@@ -17,25 +17,21 @@ jobs:
       - uses: actions/setup-node@v2
         with:
           node-version: "18.12.0"
+      - name: Install deps
+        run: npm install
       - name: Build
         run: npm run build
       - name: Build Env Containers
-        run: docker-compose -f deployments/test/docker-compose.yml build
+        run: docker-compose -f docker-compose.yml build
       - name: Start Env Containers
-        run: docker-compose -f deployments/test/docker-compose.yml up -d
+        run: docker-compose -f docker-compose.yml up -d
       - name: Kafka Logs
-        run: docker-compose -f deployments/test/docker-compose.yml logs kafka
+        run: docker-compose -f docker-compose.yml logs kafka
       - name: Sleep for Containers
         uses: juliangruber/sleep-action@v1
         with:
-          time: 30s
-      - name: Create Topics
-        run: docker-compose -f deployments/test/docker-compose.yml
-          exec -T kafka kafka-topics --bootstrap-server 127.0.0.1:9092
-          --create --partitions 1 --replication-factor 1 --topic test-topic-a test-topic-b
-        env:
-          COMPOSE_INTERACTIVE_NO_CLI: 1
+          time: 31s
       - name: Run Test
         run: npm run test
       - name: Services Stop
-        run: docker-compose -f deployments/test/docker-compose.yml down
+        run: docker-compose -f docker-compose.yml down
