@@ -5,10 +5,7 @@ import {
   Message,
   Transaction,
 } from "kafkajs";
-import {
-  KafkaOneToNExactlyOnceManager,
-  KafkaOneToNExactlyOnceManagerConfig,
-} from "./kafka-one-to-n-exactly-once-manager";
+import { KafkaOneToNExactlyOnceManager } from "./kafka-one-to-n-exactly-once-manager";
 
 // Receive a single message and return messages for a set of topics.
 export type KafkaJsUtilsOneToNProcessor = (
@@ -31,15 +28,13 @@ type KafkaOneToNExactlyOnceExecutorConfig = {
  * Be sure to call `init` after creating this object.
  */
 export class KafkaOneToNExactlyOnceExecutor {
-  readonly manager: KafkaOneToNExactlyOnceManager;
   private readonly logger: Logger;
   private initialized = false;
 
   constructor(
-    managerConfig: KafkaOneToNExactlyOnceManagerConfig,
+    private readonly manager: KafkaOneToNExactlyOnceManager,
     private readonly executorConfig: KafkaOneToNExactlyOnceExecutorConfig
   ) {
-    this.manager = new KafkaOneToNExactlyOnceManager(managerConfig);
     this.logger = this.manager.kafka.logger();
   }
 

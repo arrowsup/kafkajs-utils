@@ -14,7 +14,7 @@ describe("KafkaOneToNExactlyOnceManager", () => {
 
   let manager: KafkaOneToNExactlyOnceManager;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     manager = new KafkaOneToNExactlyOnceManager({
       transactionalIdPrefix: transactionalIdPrefix,
       kafkaConfig: testKafkaConfig,
@@ -25,6 +25,10 @@ describe("KafkaOneToNExactlyOnceManager", () => {
         createPartitioner: Partitioners.DefaultPartitioner,
       },
     });
+
+    await manager.kafka
+      .admin()
+      .createTopics({ topics: topics.map((_) => ({ topic: _ })) });
   });
 
   afterEach(async () => {
