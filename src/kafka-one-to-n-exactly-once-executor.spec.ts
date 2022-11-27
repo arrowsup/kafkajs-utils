@@ -3,6 +3,7 @@ import {
   KafkaJsUtilsOneToNProcessor,
   KafkaOneToNExactlyOnceExecutor,
 } from "./kafka-one-to-n-exactly-once-executor";
+import { KafkaOneToNExactlyOnceManager } from "./kafka-one-to-n-exactly-once-manager";
 import { testConsumptionHelper } from "./test-consumption-helper";
 import { testKafkaConfig } from "./test-kafka-config";
 
@@ -13,40 +14,39 @@ describe("KafkaOneToNExactlyOnceExecutor", () => {
   const topic3 = topics[2];
   const transactionalIdPrefix = "txn-prefix-exec";
 
+  let manager: KafkaOneToNExactlyOnceManager;
   let executor: KafkaOneToNExactlyOnceExecutor;
   let processor: KafkaJsUtilsOneToNProcessor;
 
   beforeEach(() => {
-    executor = new KafkaOneToNExactlyOnceExecutor(
-      {
-        transactionalIdPrefix: transactionalIdPrefix,
-        kafkaConfig: testKafkaConfig,
-        createConsumerConfig: {
-          groupId: "test-consumer-group-exec",
-        },
-        createProducerOptions: {
-          createPartitioner: Partitioners.DefaultPartitioner,
-        },
+    manager = new KafkaOneToNExactlyOnceManager({
+      transactionalIdPrefix: transactionalIdPrefix,
+      kafkaConfig: testKafkaConfig,
+      createConsumerConfig: {
+        groupId: "test-consumer-group-exec",
       },
-      {
-        processor: (event) => {
-          // Dispatch to test's processor.
-          return processor(event);
-        },
-        subscribeParams: {
-          topic: topic1,
-          fromBeginning: true,
-        },
-        sendParams: {},
-      }
-    );
+      createProducerOptions: {
+        createPartitioner: Partitioners.DefaultPartitioner,
+      },
+    });
+    executor = new KafkaOneToNExactlyOnceExecutor(manager, {
+      processor: (event) => {
+        // Dispatch to test's processor.
+        return processor(event);
+      },
+      subscribeParams: {
+        topic: topic1,
+        fromBeginning: true,
+      },
+      sendParams: {},
+    });
   });
 
   afterEach(async () => {
     await executor.cleanUp();
 
     // Clean up topics we created
-    const admin = executor.manager.kafka.admin();
+    const admin = manager.kafka.admin();
     const existingTopics = await admin.listTopics();
     await admin.deleteTopics({
       topics: existingTopics.filter((t) => topics.includes(t)),
@@ -87,8 +87,10 @@ describe("KafkaOneToNExactlyOnceExecutor", () => {
 
     it("executes", async () => {
       const key = "a key";
-      const sendTxn =
-        await executor.manager.getExactlyOnceCompatibleTransaction(topic1, 0);
+      const sendTxn = await manager.getExactlyOnceCompatibleTransaction(
+        topic1,
+        0
+      );
       await sendTxn.send({
         topic: topic1,
         messages: [
@@ -100,7 +102,7 @@ describe("KafkaOneToNExactlyOnceExecutor", () => {
       });
       await sendTxn.commit();
 
-      const consumer = executor.manager.kafka.consumer({
+      const consumer = manager.kafka.consumer({
         groupId: "exec-one-to-n-test-group",
         readUncommitted: false,
       });
