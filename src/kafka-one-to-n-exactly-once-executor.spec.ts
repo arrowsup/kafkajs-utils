@@ -18,7 +18,7 @@ describe("KafkaOneToNExactlyOnceExecutor", () => {
   let executor: KafkaOneToNExactlyOnceExecutor;
   let processor: KafkaJsUtilsOneToNProcessor;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     manager = new KafkaOneToNExactlyOnceManager({
       transactionalIdPrefix: transactionalIdPrefix,
       kafkaConfig: testKafkaConfig,
@@ -29,6 +29,11 @@ describe("KafkaOneToNExactlyOnceExecutor", () => {
         createPartitioner: Partitioners.DefaultPartitioner,
       },
     });
+
+    await manager.kafka
+      .admin()
+      .createTopics({ topics: topics.map((_) => ({ topic: _ })) });
+
     executor = new KafkaOneToNExactlyOnceExecutor(manager, {
       processor: (event) => {
         // Dispatch to test's processor.
