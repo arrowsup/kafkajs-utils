@@ -48,7 +48,7 @@ describe("KafkaOneToNExactlyOnceExecutor", () => {
   });
 
   afterEach(async () => {
-    await executor.cleanUp();
+    await manager.cleanUp();
 
     // Clean up topics we created
     const admin = manager.kafka.admin();
