@@ -40,10 +40,6 @@ export class KafkaOneToNExactlyOnceExecutor {
 
   private readonly logPrefix = KafkaOneToNExactlyOnceExecutor.name + ": ";
 
-  readonly cleanUp = async () => {
-    await this.manager.cleanUp();
-  };
-
   readonly init = async (): Promise<void> => {
     if (this.initialized) {
       const err = "already initialized";
