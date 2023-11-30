@@ -81,7 +81,7 @@ export class KafkaOneToNExactlyOnceExecutor {
               partitions: [
                 {
                   partition: payload.partition,
-                  offset: payload.message.offset,
+                  offset: (Number(payload.message.offset) + 1).toString(),
                 },
               ],
             },
