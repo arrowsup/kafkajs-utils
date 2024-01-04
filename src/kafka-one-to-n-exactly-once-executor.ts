@@ -64,31 +64,37 @@ export class KafkaOneToNExactlyOnceExecutor {
             payload.partition
           );
 
-        for (const output of outputs) {
-          await transaction.send({
-            ...this.executorConfig.sendParams,
-            messages: output.messages,
-            topic: output.topic,
-            acks: -1, // All brokers must ack - required for EOS.
+        try {
+          for (const output of outputs) {
+            await transaction.send({
+              ...this.executorConfig.sendParams,
+              messages: output.messages,
+              topic: output.topic,
+              acks: -1, // All brokers must ack - required for EOS.
+            });
+          }
+
+          await transaction.sendOffsets({
+            consumerGroupId: this.manager.getConsumerGroupId(),
+            topics: [
+              {
+                topic: payload.topic,
+                partitions: [
+                  {
+                    partition: payload.partition,
+                    offset: (Number(payload.message.offset) + 1).toString(),
+                  },
+                ],
+              },
+            ],
           });
+
+          await transaction.commit();
+        } catch (e) {
+          await transaction.abort();
+          this.logger.debug(this.logPrefix + "Transaction aborted");
+          throw e;
         }
-
-        await transaction.sendOffsets({
-          consumerGroupId: this.manager.getConsumerGroupId(),
-          topics: [
-            {
-              topic: payload.topic,
-              partitions: [
-                {
-                  partition: payload.partition,
-                  offset: (Number(payload.message.offset) + 1).toString(),
-                },
-              ],
-            },
-          ],
-        });
-
-        await transaction.commit();
       },
     });
   };
