@@ -25,7 +25,7 @@
   },
   "homepage": "https://github.com/arrowsup/kafkajs-utils#readme",
   "peerDependencies": {
-    "kafkajs": "^2.2.2"
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@types/jest": "^29.2.0",
