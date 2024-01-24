@@ -132,10 +132,17 @@ export class KafkaOneToNExactlyOnceManager {
 
     if (existingProducer) {
       // Already have a producer for this topic & read partition.
+      this.logger.info(
+        this.logPrefix + "reusing producer for transaction: " + transactionalId
+      );
       return existingProducer.transaction();
     } else {
       // No producer yet -> make one.
-      this.logger.info(this.logPrefix + "allocating producer");
+      this.logger.info(
+        this.logPrefix +
+          "allocating producer for transaction: " +
+          transactionalId
+      );
 
       const newProducer = this.kafka.producer({
         ...this.config.createProducerOptions,
@@ -148,7 +155,11 @@ export class KafkaOneToNExactlyOnceManager {
 
       this.producerMap.set(transactionalId, newProducer);
 
-      this.logger.info(this.logPrefix + "allocated producer");
+      this.logger.info(
+        this.logPrefix +
+          "allocated producer for transaction: " +
+          transactionalId
+      );
       return newProducer.transaction();
     }
   };
