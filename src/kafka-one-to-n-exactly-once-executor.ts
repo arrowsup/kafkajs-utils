@@ -1,6 +1,7 @@
 import {
   Consumer,
   EachMessagePayload,
+  KafkaJSError,
   Logger,
   Message,
   Transaction,
@@ -92,8 +93,13 @@ export class KafkaOneToNExactlyOnceExecutor {
           await transaction.commit();
         } catch (e) {
           await transaction.abort();
-          this.logger.debug(this.logPrefix + "Transaction aborted");
-          throw e;
+          const err = e instanceof Error ? e.message : JSON.stringify(e);
+          this.logger.error(this.logPrefix + "Transaction failed: " + err);
+          // Swallow non-retriable errors and throw a retriable one.
+          // Otherwise, in high conflict situations, we'll sometimes end up crashing and we'll stop processing.
+          throw new KafkaJSError("Transaction failed.  Retrying.", {
+            retriable: true,
+          });
         }
       },
     });
